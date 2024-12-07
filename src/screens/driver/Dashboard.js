@@ -3,11 +3,12 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { TouchableOpacity } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-
 import EventsScreen from './EventsScreen';
-import ScanTicketScreen from './ScanTicketScreen';
 import SettingsScreen from './SettingsScreen';
 import RouteSelector from './RouteSelector'; // Importa el componente de selección de rutas
+import QRScannerScreen from './QRScannerScreen';
+import QRCodeScanner from './QRCodeScanner';
+import ScanTicketScreen from './ScanTicketScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -16,12 +17,12 @@ const EventsStack = () => {
   return (
     <Stack.Navigator>
       <Stack.Screen
-        name="Events"
+        name="EventsScreen" // Nombre único para el Stack
         component={EventsScreen}
         options={({ navigation }) => ({
           headerRight: () => (
             <TouchableOpacity
-              onPress={() => navigation.navigate('RouteSelector')} // Navega al selector de rutas
+              onPress={() => navigation.navigate('RouteSelector')}
               style={{ marginRight: 15 }}
             >
               <Icon name="add-circle-outline" size={24} color="black" />
@@ -34,12 +35,13 @@ const EventsStack = () => {
         name="RouteSelector"
         component={RouteSelector}
         options={{
-          title: 'Seleccionar Ruta', // Título del header para el selector de rutas
+          title: 'Seleccionar Ruta',
         }}
       />
     </Stack.Navigator>
   );
 };
+
 
 const Dashboard = () => {
   return (
@@ -47,9 +49,9 @@ const Dashboard = () => {
       screenOptions={({ route }) => ({
         tabBarIcon: ({ color, size }) => {
           let iconName;
-          if (route.name === 'Events') {
+          if (route.name === 'EventsTab') {
             iconName = 'calendar-outline';
-          } else if (route.name === 'Scan Ticket') {
+          } else if (route.name === 'ScanTicket') {
             iconName = 'scan-outline';
           } else if (route.name === 'Settings') {
             iconName = 'settings-outline';
@@ -61,14 +63,15 @@ const Dashboard = () => {
       })}
     >
       <Tab.Screen
-        name="Events"
-        component={EventsStack} // Usa el stack que incluye RouteSelector
-        options={{ headerShown: false }} // Oculta el header duplicado
+        name="EventsTab" // Nombre único para el Tab
+        component={EventsStack}
+        options={{ headerShown: false }}
       />
-      <Tab.Screen name="Scan Ticket" component={ScanTicketScreen} />
+      <Tab.Screen name="ScanTicket" component={ScanTicketScreen} />
       <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>
   );
 };
+
 
 export default Dashboard;

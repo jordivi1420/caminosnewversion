@@ -2,14 +2,12 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-
+import EventsScreen from './EventsScreen';
+import SettingsScreen from './SettingsScreen';
+import TicketHistoryScreen from './TicketHistoryScreen';
 const Tab = createBottomTabNavigator();
 
-const EventsScreen = () => (
-  <View style={styles.container}>
-    <Text style={styles.text}>0 Eventos Users</Text>
-  </View>
-);
+
 
 const TicketsScreen = () => (
   <View style={styles.container}>
@@ -17,11 +15,7 @@ const TicketsScreen = () => (
   </View>
 );
 
-const SettingsScreen = () => (
-  <View style={styles.container}>
-    <Text style={styles.text}>Configuracion</Text>
-  </View>
-);
+
 
 const Dashboard = () => {
   return (
@@ -43,7 +37,7 @@ const Dashboard = () => {
       })}
     >
       <Tab.Screen name="Eventos" component={EventsScreen} />
-      <Tab.Screen name="Mis tickets" component={TicketsScreen} />
+      <Tab.Screen name="Mis tickets" component={TicketHistoryScreen} />
       <Tab.Screen name="Configuracion" component={SettingsScreen} />
     </Tab.Navigator>
   );

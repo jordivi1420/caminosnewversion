@@ -37,8 +37,18 @@ const RegisterScreen = ({ navigation }) => {
         role: 'user', // Asigna el rol por defecto
       });
 
-      // Redirigir al Dashboard
-      navigation.replace('Dashboard'); // Replace para evitar volver al registro
+      // Redirigir al Dashboard basado en el rol
+      const redirectToDashboard = () => {
+        if (role === 'user') {
+          navigation.replace('UserDashboard'); // Cambia a la vista de usuarios
+        } else if (role === 'driver') {
+          navigation.replace('DriverDashboard'); // Cambia a la vista de conductores
+        } else {
+          navigation.replace('AdminDashboard'); // Cambia a la vista de administradores (si aplica)
+        }
+      };
+
+      redirectToDashboard();
     } catch (error) {
       console.error(error);
       setErrorMessage('Error al registrar el usuario. Intenta nuevamente.');

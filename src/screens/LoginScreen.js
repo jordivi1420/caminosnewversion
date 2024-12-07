@@ -10,14 +10,19 @@ const LoginScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
+    if (!email || !password) {
+      setErrorMessage('Por favor, completa todos los campos.');
+      return;
+    }
+
     setLoading(true); // Muestra el indicador de carga
     try {
       await signInWithEmailAndPassword(auth, email, password);
       console.log('Usuario logueado');
-      setLoading(false); // Oculta el indicador de carga
     } catch (error) {
-      console.log(error);
-      setErrorMessage('Errors al iniciar sesión. Verifica tus credenciales.');
+      console.error('Error al iniciar sesión:', error.message);
+      setErrorMessage('Error al iniciar sesión. Verifica tus credenciales.');
+    } finally {
       setLoading(false); // Oculta el indicador de carga
     }
   };
@@ -34,17 +39,25 @@ const LoginScreen = ({ navigation }) => {
       <TextInput
         style={styles.input}
         placeholder="Correo Electrónico"
-        onChangeText={setEmail}
+        onChangeText={(text) => {
+          setErrorMessage(''); // Limpia errores al escribir
+          setEmail(text);
+        }}
         value={email}
+        keyboardType="email-address"
+        autoCapitalize="none"
       />
       <TextInput
         style={styles.input}
         placeholder="Contraseña"
         secureTextEntry
-        onChangeText={setPassword}
+        onChangeText={(text) => {
+          setErrorMessage(''); // Limpia errores al escribir
+          setPassword(text);
+        }}
         value={password}
       />
-      <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
+      <TouchableOpacity style={[styles.button, loading && styles.buttonDisabled]} onPress={handleLogin} disabled={loading}>
         {loading ? (
           <ActivityIndicator size="small" color="#fff" /> // Indicador de carga dentro del botón
         ) : (
@@ -78,6 +91,7 @@ const styles = StyleSheet.create({
   error: {
     color: '#E53935',
     marginBottom: 10,
+    textAlign: 'center',
   },
   input: {
     height: 50,
@@ -94,6 +108,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 8,
     width: '80%',
+  },
+  buttonDisabled: {
+    backgroundColor: '#BDBDBD', // Color del botón cuando está deshabilitado
   },
   buttonText: {
     color: '#fff',

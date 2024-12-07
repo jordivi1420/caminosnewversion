@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, Alert, Text, Button } from 'react-native';
+import { View, StyleSheet, Alert, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import MapViewDirections from 'react-native-maps-directions';
 import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
 import * as Location from 'expo-location';
-import { ref, push,get } from 'firebase/database'; // Importa funciones de Firebase
-import { database,auth } from '../../services/firebase';
+import DateTimePickerModal from 'react-native-modal-datetime-picker';
+import { ref, push, get } from 'firebase/database';
+import { database, auth } from '../../services/firebase';
+import moment from 'moment';
 
+const GOOGLE_MAPS_APIKEY = 'AIzaSyCbGm5vDx8uDuWnD6KH7ZESYQj-qP4-Kb4';
 
-const GOOGLE_MAPS_APIKEY = 'AIzaSyCbGm5vDx8uDuWnD6KH7ZESYQj-qP4-Kb4'; // Reemplaza con tu clave de Google Maps
-
-const RouteSelector = () => {
+const RouteSelector = ({ navigation }) => {
   const [region, setRegion] = useState(null);
   const [origin, setOrigin] = useState(null);
   const [destination, setDestination] = useState(null);
@@ -18,6 +19,9 @@ const RouteSelector = () => {
   const [duration, setDuration] = useState(null);
   const [driverName, setDriverName] = useState('');
   const [destinationName, setDestinationName] = useState('');
+  const [departureTime, setDepartureTime] = useState(new Date());
+  const [showPicker, setShowPicker] = useState(false);
+  const [loadingRoute, setLoadingRoute] = useState(false); // Indica si se está calculando la ruta
   const mapRef = useRef(null);
 
   useEffect(() => {
@@ -40,39 +44,39 @@ const RouteSelector = () => {
       setOrigin({ latitude, longitude });
     })();
 
-        // Obtén el nombre del conductor desde Firebase
-        const fetchDriverName = async () => {
-          try {
-            const user = auth.currentUser;
-            if (user) {
-              const snapshot = await get(ref(database, `users/${user.uid}`));
-              const data = snapshot.val();
-              if (data && data.name) {
-                setDriverName(data.name);
-              } else {
-                setDriverName('Conductor desconocido');
-              }
-            }
-          } catch (error) {
-            console.error('Error al obtener el nombre del conductor:', error);
+    const fetchDriverName = async () => {
+      try {
+        const user = auth.currentUser;
+        if (user) {
+          const snapshot = await get(ref(database, `users/${user.uid}`));
+          const data = snapshot.val();
+          if (data && data.name) {
+            setDriverName(data.name);
+          } else {
             setDriverName('Conductor desconocido');
           }
-        };
-    
-        fetchDriverName();
-       
-        
+        }
+      } catch (error) {
+        console.error('Error al obtener el nombre del conductor:', error);
+        setDriverName('Conductor desconocido');
+      }
+    };
+
+    fetchDriverName();
   }, []);
 
-
-
-
   const saveRouteToFirebase = async () => {
-    if (!origin || !destination || !distance || !duration) {
-      Alert.alert('Faltan datos', 'Por favor, asegúrate de seleccionar origen y destino.');
+    const user = auth.currentUser;
+    if (!user) {
+      Alert.alert('Error', 'Usuario no autenticado.');
       return;
     }
-
+  
+    if (!origin || !destination || !distance || !duration) {
+      Alert.alert('Faltan datos', 'Por favor, asegúrate de llenar todos los campos.');
+      return;
+    }
+  
     const routeData = {
       origin,
       destination,
@@ -80,26 +84,46 @@ const RouteSelector = () => {
       destinationName,
       distance: `${distance.toFixed(2)} km`,
       duration: `${duration.toFixed(2)} minutos`,
-      departureTime: new Date().toISOString(), // Hora de salida actual
-      arrivalTime: new Date(Date.now() + duration * 60000).toISOString(), // Calcula la hora de llegada
-      driverRating: 4.5, // Puedes obtenerlo dinámicamente si tienes un sistema de calificaciones
-      date: new Date().toISOString().split('T')[0], // Fecha actual
-      passengers: 25, // Número de pasajeros (puedes ajustarlo)
+      departureTime: departureTime.toISOString(),
+      arrivalTime: new Date(departureTime.getTime() + duration * 60000).toISOString(),
+      driverRating: 4.5,
+      date: departureTime.toISOString().split('T')[0],
+      passengers: 25,
+      driverId: user.uid, // Asociar la ruta al UID del conductor actual
     };
-
+  
     try {
       const routeRef = ref(database, 'routes');
       await push(routeRef, routeData);
       Alert.alert('Éxito', 'Ruta guardada correctamente en Firebase.');
+      navigation.navigate('EventsScreen'); // Redirigir al EventsScreen
     } catch (error) {
       console.error('Error al guardar la ruta:', error);
       Alert.alert('Error', 'No se pudo guardar la ruta. Intenta nuevamente.');
     }
   };
+  
+
+  const handleDatePickerConfirm = (selectedDate) => {
+    setShowPicker(false);
+    if (selectedDate) {
+      setDepartureTime(selectedDate);
+    }
+  };
+
+  const handleRouteReady = (result) => {
+    setLoadingRoute(false);
+    setDistance(result.distance);
+    setDuration(result.duration);
+    mapRef.current.fitToCoordinates(result.coordinates, {
+      edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+    });
+  };
 
   if (!region) {
     return (
       <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#0288D1" />
         <Text style={styles.loadingText}>Cargando mapa...</Text>
       </View>
     );
@@ -123,13 +147,8 @@ const RouteSelector = () => {
             apikey={GOOGLE_MAPS_APIKEY}
             strokeWidth={4}
             strokeColor="blue"
-            onReady={(result) => {
-              setDistance(result.distance);
-              setDuration(result.duration);
-              mapRef.current.fitToCoordinates(result.coordinates, {
-                edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
-              });
-            }}
+            onStart={() => setLoadingRoute(true)}
+            onReady={handleRouteReady}
           />
         )}
       </MapView>
@@ -157,7 +176,7 @@ const RouteSelector = () => {
         onPress={(data, details = null) => {
           const { lat, lng } = details.geometry.location;
           setDestination({ latitude: lat, longitude: lng });
-          setDestinationName(data.description || 'Destino desconocido'); // Asegura que el nombre no quede vacío
+          setDestinationName(data.description || 'Destino desconocido');
         }}
         query={{
           key: GOOGLE_MAPS_APIKEY,
@@ -169,16 +188,39 @@ const RouteSelector = () => {
         }}
       />
 
-      {distance && duration && (
-        <View style={styles.details}>
-          <Text>Distancia: {distance.toFixed(2)} km</Text>
-          <Text>Duración: {duration.toFixed(2)} minutos</Text>
-          <Text>Distancia: {distance.toFixed(2)} km</Text>
-          <Text>Destino: {destinationName}</Text>
-          <Text>Conductor: {driverName}</Text>
-          <Button title="Guardar Ruta" onPress={saveRouteToFirebase} />
-        </View>
-      )}
+      <DateTimePickerModal
+        isVisible={showPicker}
+        mode="datetime"
+        onConfirm={handleDatePickerConfirm}
+        onCancel={() => setShowPicker(false)}
+      />
+
+      <View style={styles.details}>
+        {loadingRoute ? (
+          <ActivityIndicator size="large" color="#0288D1" />
+        ) : (
+          <>
+            {distance && duration && (
+              <>
+                <Text style={styles.detailText}>Distancia: {distance.toFixed(2)} km</Text>
+                <Text style={styles.detailText}>Duración: {duration.toFixed(2)} minutos</Text>
+              </>
+            )}
+            <Text style={styles.detailText}>
+              Fecha y hora seleccionada: {moment(departureTime).format('DD/MM/YYYY HH:mm')}
+            </Text>
+            <TouchableOpacity
+              style={styles.button}
+              onPress={() => setShowPicker(true)}
+            >
+              <Text style={styles.buttonText}>Seleccionar fecha y hora</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.buttonSave} onPress={saveRouteToFirebase}>
+              <Text style={styles.buttonText}>Guardar Ruta</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
     </View>
   );
 };
@@ -212,13 +254,41 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   details: {
-    padding: 10,
+    padding: 15,
     backgroundColor: '#fff',
     position: 'absolute',
     bottom: 10,
     width: '90%',
     alignSelf: 'center',
-    borderRadius: 5,
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  detailText: {
+    fontSize: 14,
+    marginVertical: 5,
+    color: '#333',
+  },
+  button: {
+    backgroundColor: '#0288D1',
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginVertical: 10,
+  },
+  buttonSave: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginVertical: 10,
+  },
+  buttonText: {
+    textAlign: 'center',
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
 });
 

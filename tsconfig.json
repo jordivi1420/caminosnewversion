@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "strict": true, // Activa verificaciones estrictas
+    "esModuleInterop": true, // Habilita interoperabilidad con módulos CommonJS
+    "skipLibCheck": true, // Omite la verificación de tipos en las dependencias
+    "jsx": "react-native", // Especifica que JSX es para React Native
+    "resolveJsonModule": true, // Permite importar archivos JSON
+    "target": "ESNext", // Especifica el estándar de JavaScript
+    "moduleResolution": "node", // Usa resolución de módulos tipo Node.js
+    "isolatedModules": true // Habilita compilación aislada de módulos
+  },
+  "extends": "expo/tsconfig.base",
+  "include": ["**/*.ts", "**/*.tsx"], // Archivos TypeScript a incluir
+  "exclude": ["node_modules", "babel.config.js", "metro.config.js"] // Excluye estos archivos
+}
