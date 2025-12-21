@@ -22,35 +22,36 @@ const BuyTicketScreen = ({ route, navigation }) => {
       // Verificar si ya tiene un ticket para la misma ruta
       const ticketRef = ref(database, `tickets/${user.uid}`);
       const ticketSnapshot = await get(ticketRef);
-  
       if (ticketSnapshot.exists()) {
         const tickets = ticketSnapshot.val();
         const existingTicket = Object.values(tickets).find((ticket) => ticket.routeId === routeId);
   
         if (existingTicket) {
-          Alert.alert(
-            'Error',
-            'Ya tienes un ticket para esta ruta. No puedes comprar otro.'
-          );
+          Alert.alert('Error', 'Ya tienes un ticket para esta ruta.');
           setLoading(false);
           return;
         }
       }
   
-      // Obtener el nombre del destino desde la ruta
+      // Consultar la ruta para verificar asientos disponibles
       const routeRef = ref(database, `routes/${routeId}`);
       const routeSnapshot = await get(routeRef);
   
       if (!routeSnapshot.exists()) {
-        throw new Error('La ruta seleccionada no existe en la base de datos.');
+        throw new Error('La ruta seleccionada no existe.');
       }
   
       const routeData = routeSnapshot.val();
-      if (!routeData.destinationName || !routeData.driverName) {
-        throw new Error('La ruta no tiene un nombre de destino o conductor asignado.');
+      if (routeData.availableSeats <= 0) {
+        Alert.alert('Error', 'No hay asientos disponibles para esta ruta.');
+        setLoading(false);
+        return;
       }
   
-      // Crear un ticket en Firebase
+      // Reducir la cantidad de asientos disponibles
+      await update(routeRef, { availableSeats: routeData.availableSeats - 1 });
+  
+      // Crear un nuevo ticket
       const newTicket = {
         routeId,
         userId: user.uid,
@@ -60,32 +61,30 @@ const BuyTicketScreen = ({ route, navigation }) => {
       };
       const newTicketRef = await push(ticketRef, newTicket);
   
-      // Generar el valor para el QR
+      // Generar el QR
       const qrValue = JSON.stringify({
         ticketId: newTicketRef.key,
         routeId,
         userId: user.uid,
       });
   
-      const apiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(
-        qrValue
-      )}`;
+      const apiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrValue)}`;
       setQrImageUrl(apiUrl);
-  
-      // Incrementar el campo 'sold' en la ruta correspondiente
-      await update(routeRef, {
-        sold: increment(1),
-      });
-  
       setTicketGenerated(true);
+
+              // Incrementar el campo 'sold' en la ruta correspondiente
+        await update(routeRef, {
+          sold: increment(1),
+         });
       Alert.alert('Éxito', '¡Ticket generado correctamente!');
     } catch (error) {
       console.error('Error al generar el ticket:', error);
-      Alert.alert('Error', error.message || 'No se pudo generar el ticket. Intenta de nuevo.');
+      Alert.alert('Error', error.message || 'No se pudo generar el ticket.');
     }
     setLoading(false);
   };
   
+
 
   return (
     <View style={styles.container}>

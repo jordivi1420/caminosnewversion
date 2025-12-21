@@ -56,8 +56,8 @@ const EventsScreen = ({ navigation }) => {
           <Text style={styles.subtitle}>{item.routeName}</Text>
         </View>
         <View style={styles.details}>
-          <Text style={styles.sold}>Sold: {item.sold || 0}</Text>
-          <Text style={styles.entered}>Entered: {item.entered || 0}</Text>
+          <Text style={styles.sold}>Usados: {item.sold || 0}</Text>
+          <Text style={styles.entered}>QR: {item.availableSeats || 0}</Text>
         </View>
         <Text style={styles.date}>
           Salida: {moment(item.departureTime).format('YYYY-MM-DD HH:mm')}
@@ -70,7 +70,7 @@ const EventsScreen = ({ navigation }) => {
   style={styles.button}
   onPress={() => navigation.navigate('BuyTicketScreen', { routeId: item.id })}
 >
-  <Text style={styles.buttonText}>Buy Ticket</Text>
+  <Text style={styles.buttonText}>Solicitar QR</Text>
 </TouchableOpacity>
 
     </View>
@@ -81,7 +81,7 @@ const EventsScreen = ({ navigation }) => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#0288D1" />
-        <Text style={styles.loadingText}>Loading routes...</Text>
+        <Text style={styles.loadingText}>cargando rutas...</Text>
       </View>
     );
   }

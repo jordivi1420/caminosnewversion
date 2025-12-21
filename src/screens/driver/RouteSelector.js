@@ -89,8 +89,10 @@ const RouteSelector = ({ navigation }) => {
       driverRating: 4.5,
       date: departureTime.toISOString().split('T')[0],
       passengers: 25,
-      driverId: user.uid, // Asociar la ruta al UID del conductor actual
+      availableSeats: 25, // Nuevo campo
+      driverId: user.uid,
     };
+    
   
     try {
       const routeRef = ref(database, 'routes');

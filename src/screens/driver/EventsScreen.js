@@ -92,8 +92,8 @@ const EventsScreen = ({ navigation }) => {
           <Text style={styles.title}>{item.destinationName}</Text>
         </View>
         <View style={styles.details}>
-          <Text style={styles.sold}>Vendidos: {item.sold || 0}</Text>
-          <Text style={styles.entered}>Disponibles: {item.entered || 0}</Text>
+          <Text style={styles.sold}>Usados: {item.sold || 0}</Text>
+          <Text style={styles.entered}>Disponibles: {item.availableSeats || 0}</Text>
         </View>
         <Text style={styles.date}>
           Salida: {moment(item.departureTime).format('DD/MM/YYYY HH:mm')}

@@ -58,6 +58,7 @@ const RouteDetails = ({ route, navigation }) => {
       navigation.navigate('RouteMap', {
         origin: routeDetails.origin,
         destination: routeDetails.destination,
+        routeId
       });
     } catch (error) {
       console.error('Error al iniciar la ruta:', error);

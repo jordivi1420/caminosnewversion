@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'reac
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { ref, set } from 'firebase/database';
 import { auth, database } from '../services/firebase';
+import UserNavigator from '../navigation/UserNavigator';
 
 const RegisterScreen = ({ navigation }) => {
   const [name, setName] = useState('');
@@ -38,17 +39,17 @@ const RegisterScreen = ({ navigation }) => {
       });
 
       // Redirigir al Dashboard basado en el rol
-      const redirectToDashboard = () => {
-        if (role === 'user') {
-          navigation.replace('UserDashboard'); // Cambia a la vista de usuarios
-        } else if (role === 'driver') {
+      const redirectToDashboard = (userRole) => {
+        if (userRole === 'user') {
+          navigation.replace('UserNavigator'); // Cambia a la vista de usuarios
+        } else if (userRole === 'driver') {
           navigation.replace('DriverDashboard'); // Cambia a la vista de conductores
         } else {
           navigation.replace('AdminDashboard'); // Cambia a la vista de administradores (si aplica)
         }
       };
 
-      redirectToDashboard();
+      redirectToDashboard('user');
     } catch (error) {
       console.error(error);
       setErrorMessage('Error al registrar el usuario. Intenta nuevamente.');

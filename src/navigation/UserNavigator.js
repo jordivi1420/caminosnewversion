@@ -6,6 +6,7 @@ import SettingsScreen from '../screens/user/SettingsScreen';
 import BuyTicketScreen from '../screens/user/BuyTicketScreen';
 import TicketHistoryScreen from '../screens/user/TicketHistoryScreen';
 import TicketQRCodeScreen from '../screens/user/TicketQRCodeScreen';
+import RouteMapScreen from '../screens/user/RouteMapScreen';
 const Stack = createStackNavigator();
 
 const UserNavigator = () => {
@@ -39,6 +40,12 @@ const UserNavigator = () => {
                                   name="TicketHistoryScreen" 
                                   component={TicketHistoryScreen} 
                                   options={{ title: 'Historial de tickets' }} 
+                                />
+
+          <Stack.Screen 
+                                  name="RouteMapScreen" 
+                                  component={RouteMapScreen} 
+                                  options={{ title: 'Ruta del dia' }} 
                                 />
           
           <Stack.Screen
