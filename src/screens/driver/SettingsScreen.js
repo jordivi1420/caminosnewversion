@@ -1,8 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  Alert,
+  SafeAreaView,
+  ActivityIndicator,
+} from 'react-native';
 import { signOut } from 'firebase/auth';
 import { auth, database } from '../../services/firebase';
 import { ref, get } from 'firebase/database';
+import Icon from 'react-native-vector-icons/Ionicons';
 
 const ProfileScreen = ({ navigation }) => {
   const [userData, setUserData] = useState({
@@ -10,6 +20,8 @@ const ProfileScreen = ({ navigation }) => {
     email: 'Cargando...',
     photo: null,
   });
+
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -21,15 +33,22 @@ const ProfileScreen = ({ navigation }) => {
             const data = snapshot.val();
             setUserData({
               name: data.name || 'Usuario',
-              email: user.email,
-              photo: data.photo || null, // Si hay una foto de perfil, se usa, sino se deja null
+              email: user.email || 'Sin correo',
+              photo: data.photo || null,
             });
           } else {
-            console.log('No se encontraron datos del usuario.');
+            setUserData({
+              name: 'Usuario',
+              email: user.email || 'Sin correo',
+              photo: null,
+            });
           }
         }
       } catch (error) {
         console.error('Error al cargar los datos del usuario:', error);
+        Alert.alert('Error', 'No se pudieron cargar los datos del perfil.');
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -46,104 +65,178 @@ const ProfileScreen = ({ navigation }) => {
     }
   };
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#0288D1" />
+        <Text style={styles.loadingText}>Cargando perfil...</Text>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <View style={styles.container}>
-      {/* Foto de perfil */}
-      <View style={styles.profileContainer}>
+    <SafeAreaView style={styles.container}>
+      {/* Fondo superior suave */}
+      <View style={styles.topBackground} />
+
+      {/* Tarjeta principal */}
+      <View style={styles.profileCard}>
         {userData.photo ? (
           <Image source={{ uri: userData.photo }} style={styles.profileImage} />
         ) : (
           <View style={styles.placeholderImage}>
             <Text style={styles.placeholderText}>
-              {userData.name.charAt(0).toUpperCase()}
+              {userData.name?.charAt(0)?.toUpperCase() || 'U'}
             </Text>
           </View>
         )}
+
         <Text style={styles.profileName}>{userData.name}</Text>
         <Text style={styles.profileEmail}>{userData.email}</Text>
       </View>
 
-      {/* Opciones del perfil */}
+      {/* Opciones */}
       <View style={styles.optionsContainer}>
         <TouchableOpacity style={styles.option}>
-          <Text style={styles.optionText}>Editar Perfil</Text>
+          <View style={styles.optionLeft}>
+            <Icon name="person-outline" size={20} color="#0288D1" />
+            <Text style={styles.optionText}>Editar perfil</Text>
+          </View>
+          <Icon name="chevron-forward" size={20} color="#94A3B8" />
         </TouchableOpacity>
+
         <TouchableOpacity style={styles.option}>
-          <Text style={styles.optionText}>Cambiar Contraseña</Text>
+          <View style={styles.optionLeft}>
+            <Icon name="lock-closed-outline" size={20} color="#0288D1" />
+            <Text style={styles.optionText}>Cambiar contraseña</Text>
+          </View>
+          <Icon name="chevron-forward" size={20} color="#94A3B8" />
         </TouchableOpacity>
+
         <TouchableOpacity style={styles.option} onPress={handleLogout}>
-          <Text style={[styles.optionText, { color: '#E53935' }]}>
-            Cerrar Sesión
-          </Text>
+          <View style={styles.optionLeft}>
+            <Icon name="log-out-outline" size={20} color="#E53935" />
+            <Text style={[styles.optionText, styles.logoutText]}>Cerrar sesión</Text>
+          </View>
+          <Icon name="chevron-forward" size={20} color="#94A3B8" />
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: '#F4F8FC',
   },
-  profileContainer: {
+
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 30,
-    backgroundColor: '#0288D1',
-    borderBottomLeftRadius: 25,
-    borderBottomRightRadius: 25,
+    backgroundColor: '#F4F8FC',
   },
+
+  loadingText: {
+    marginTop: 10,
+    fontSize: 15,
+    color: '#475569',
+  },
+
+  topBackground: {
+    height: 120,
+    backgroundColor: '#DDF0FF',
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+  },
+
+  profileCard: {
+    marginTop: -55,
+    marginHorizontal: 18,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    paddingVertical: 22,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+
   profileImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 2,
-    borderColor: '#fff',
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    borderWidth: 3,
+    borderColor: '#E0F2FE',
   },
+
   placeholderImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#BDBDBD',
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    backgroundColor: '#0288D1',
     justifyContent: 'center',
     alignItems: 'center',
   },
+
   placeholderText: {
-    color: '#fff',
-    fontSize: 36,
-    fontWeight: 'bold',
+    color: '#FFFFFF',
+    fontSize: 34,
+    fontWeight: '800',
   },
+
   profileName: {
-    fontSize: 24,
-    color: '#fff',
-    fontWeight: 'bold',
-    marginTop: 10,
+    marginTop: 14,
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#0F172A',
   },
+
   profileEmail: {
-    fontSize: 16,
-    color: '#fff',
-    marginTop: 5,
+    marginTop: 4,
+    fontSize: 14,
+    color: '#64748B',
   },
+
   optionsContainer: {
-    marginTop: 20,
-    paddingHorizontal: 20,
+    marginTop: 18,
+    paddingHorizontal: 18,
+    gap: 12,
   },
+
   option: {
-    backgroundColor: '#fff',
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    marginBottom: 15,
-    elevation: 3, // Sombra para Android
-    shadowColor: '#000', // Sombra para iOS
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
   },
+
+  optionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
   optionText: {
-    fontSize: 16,
-    color: '#0288D1',
-    fontWeight: 'bold',
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+
+  logoutText: {
+    color: '#E53935',
   },
 });
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -6,221 +6,492 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  SafeAreaView,
 } from 'react-native';
 import { ref, onValue } from 'firebase/database';
 import { database, auth } from '../../services/firebase';
 import { useNavigation } from '@react-navigation/native';
+import moment from 'moment';
+
+const COLORS = {
+  bg: '#F8FAFC',
+  card: '#FFFFFF',
+  text: '#1F2937',
+  muted: '#6B7280',
+
+  yellow: '#F4B41A',
+  yellowSoft: '#FFF4CC',
+
+  red: '#E95454',
+  redSoft: '#FFE4E4',
+
+  teal: '#00A8B5',
+  tealSoft: '#DDF7F9',
+
+  border: '#E5E7EB',
+  tealBorder: '#BFECEF',
+};
+
+const formatDate = (value) => {
+  if (!value) return 'No disponible';
+  const m = moment(value);
+  return m.isValid() ? m.format('DD/MM/YYYY HH:mm') : 'No disponible';
+};
 
 const TicketHistoryScreen = () => {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [visibleTickets, setVisibleTickets] = useState(10); // Controlar los tickets visibles
-  const [isEndReached, setIsEndReached] = useState(false); // Para manejar si llegamos al final
+  const [visibleTickets, setVisibleTickets] = useState(10);
+
   const navigation = useNavigation();
 
   useEffect(() => {
-    const fetchTickets = async () => {
-      const user = auth.currentUser;
-      if (!user) return;
+    const user = auth.currentUser;
 
-      const ticketsRef = ref(database, `tickets/${user.uid}`);
-      onValue(ticketsRef, (snapshot) => {
+    if (!user) {
+      setTickets([]);
+      setLoading(false);
+      return;
+    }
+
+    const ticketsRef = ref(database, `tickets/${user.uid}`);
+
+    const unsubscribe = onValue(
+      ticketsRef,
+      (snapshot) => {
         const data = snapshot.val();
-        if (data) {
-          const parsedTickets = Object.keys(data).map((key) => ({
+
+        if (!data) {
+          setTickets([]);
+          setLoading(false);
+          return;
+        }
+
+        const parsedTickets = Object.keys(data)
+          .map((key) => ({
             id: key,
             ...data[key],
-          }));
-          setTickets(parsedTickets);
-        } else {
-          setTickets([]);
-        }
-        setLoading(false);
-      });
-    };
+          }))
+          .sort((a, b) => {
+            const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            return bTime - aTime;
+          });
 
-    fetchTickets();
+        setTickets(parsedTickets);
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Error cargando tickets:', error);
+        setTickets([]);
+        setLoading(false);
+      }
+    );
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
   }, []);
 
-  const loadMoreTickets = () => {
-    setVisibleTickets((prev) => prev + 10);
-  };
+  const visibleData = useMemo(() => {
+    return tickets.slice(0, visibleTickets);
+  }, [tickets, visibleTickets]);
 
-  const renderTicket = ({ item }) => (
-    <View
-      style={[
-        styles.ticketCard,
-        item.used ? styles.ticketCardUsed : styles.ticketCardAvailable,
-      ]}
-    >
-      <View style={styles.ticketInfo}>
-        <Text style={styles.routeName}>
-          {item.destinationName || 'Desconocido'}
-        </Text>
-        <Text style={styles.date}>
-          Fecha: {new Date(item.createdAt).toLocaleString()}
-        </Text>
-      </View>
-      <View style={styles.statusContainer}>
-        {item.used ? (
-          <View>
-            <Text style={styles.statusUsed}>Usado</Text>
-            <Text style={styles.usedDate}>
-              {new Date(item.usedDate).toLocaleString()}
+  const hasMore = visibleTickets < tickets.length;
+
+  const renderTicket = ({ item }) => {
+    const isUsed = !!item.used;
+    const destinationName = item.destinationName || 'Destino no definido';
+    const originName = item.originName || 'Origen no definido';
+
+    return (
+      <View
+        style={[
+          styles.ticketCard,
+          isUsed ? styles.ticketCardUsed : styles.ticketCardAvailable,
+        ]}
+      >
+        <View style={styles.cardTopRow}>
+          <View style={isUsed ? styles.usedBadge : styles.activeBadge}>
+            <Text style={isUsed ? styles.usedBadgeText : styles.activeBadgeText}>
+              {isUsed ? 'Usado' : 'Activo'}
             </Text>
           </View>
-        ) : (
-          <TouchableOpacity
-            style={styles.qrButton}
-            onPress={() =>
-              navigation.navigate('TicketQRCodeScreen', { ticket: item })
-            }
-          >
-            <Text style={styles.qrButtonText}>Ver QR</Text>
-          </TouchableOpacity>
-        )}
+        </View>
+
+        <Text style={styles.routeName}>{destinationName}</Text>
+        <Text style={styles.routeSubtitle} numberOfLines={2}>
+          {originName} → {destinationName}
+        </Text>
+
+        <View style={styles.metaGroup}>
+          <Text style={styles.metaLabel}>Solicitado</Text>
+          <Text style={styles.metaValue}>{formatDate(item.createdAt)}</Text>
+        </View>
+
+        {isUsed ? (
+          <View style={styles.metaGroup}>
+            <Text style={styles.metaLabel}>Validado</Text>
+            <Text style={styles.metaValue}>{formatDate(item.usedDate)}</Text>
+          </View>
+        ) : null}
+
+        <View style={styles.cardFooter}>
+          <Text style={styles.ticketIdText}>Ticket #{item.id?.slice(-6) || '---'}</Text>
+
+          {!isUsed ? (
+            <TouchableOpacity
+              style={styles.qrButton}
+              onPress={() =>
+                navigation.navigate('TicketQRCodeScreen', { ticket: item })
+              }
+            >
+              <Text style={styles.qrButtonText}>Ver QR</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.usedInfoPill}>
+              <Text style={styles.usedInfoText}>Ya utilizado</Text>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const renderHeader = () => (
+    <View style={styles.headerWrap}>
+      <View style={styles.heroCard}>
+        <View style={styles.heroAccentLine} />
+        <Text style={styles.heroEyebrow}>Transporte universitario</Text>
+        <Text style={styles.heroTitle}>Mis tickets</Text>
+        <Text style={styles.heroSubtitle}>
+          Consulta tus tickets activos y revisa el historial de accesos ya utilizados.
+        </Text>
+
+        <View style={styles.countPill}>
+          <Text style={styles.countPillText}>
+            {tickets.length} {tickets.length === 1 ? 'ticket registrado' : 'tickets registrados'}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Historial</Text>
+        <Text style={styles.sectionSubtitle}>Gestiona tus accesos recientes</Text>
       </View>
     </View>
   );
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={COLORS.teal} />
+        <Text style={styles.loadingText}>Cargando tickets...</Text>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Historial de Tickets</Text>
-      {loading ? (
-        <ActivityIndicator size="large" color="#0288D1" />
-      ) : tickets.length === 0 ? (
-        <Text style={styles.noTicketsText}>No tienes tickets aún.</Text>
-      ) : (
-        <FlatList
-          data={tickets.slice(0, visibleTickets)} // Mostrar solo los tickets visibles
-          keyExtractor={(item) => item.id}
-          renderItem={renderTicket}
-          contentContainerStyle={styles.listContainer}
-          onEndReached={() => {
-            if (visibleTickets < tickets.length) {
-              setIsEndReached(true);
-            }
-          }}
-          onEndReachedThreshold={0.5} // Cuando llegue al 50% del final, se activa
-          ListFooterComponent={
-            isEndReached && visibleTickets < tickets.length ? (
-              <TouchableOpacity
-                style={styles.loadMoreButton}
-                onPress={() => {
-                  loadMoreTickets();
-                  setIsEndReached(false); // Resetear la bandera
-                }}
-              >
-                <Text style={styles.loadMoreText}>Cargar más</Text>
-              </TouchableOpacity>
-            ) : null
-          }
-        />
-      )}
-    </View>
+    <SafeAreaView style={styles.container}>
+      <FlatList
+        data={visibleData}
+        keyExtractor={(item) => item.id}
+        renderItem={renderTicket}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContainer}
+        ListHeaderComponent={renderHeader}
+        ListEmptyComponent={
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyTitle}>No tienes tickets aún</Text>
+            <Text style={styles.emptyText}>
+              Cuando solicites una ruta, tus tickets aparecerán aquí.
+            </Text>
+          </View>
+        }
+        ListFooterComponent={
+          hasMore ? (
+            <TouchableOpacity
+              style={styles.loadMoreButton}
+              onPress={() => setVisibleTickets((prev) => prev + 10)}
+            >
+              <Text style={styles.loadMoreText}>Cargar más</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={{ height: 12 }} />
+          )
+        }
+      />
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff', // Fondo blanco
-    padding: 16,
+    backgroundColor: COLORS.bg,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#2a3d66',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
+
   listContainer: {
-    paddingBottom: 16,
+    paddingBottom: 24,
   },
+
+  headerWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    marginBottom: 4,
+  },
+
+  heroCard: {
+    backgroundColor: COLORS.tealSoft,
+    borderRadius: 24,
+    padding: 18,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: COLORS.tealBorder,
+    overflow: 'hidden',
+  },
+
+  heroAccentLine: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 6,
+    backgroundColor: COLORS.red,
+  },
+
+  heroEyebrow: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: COLORS.teal,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+    marginTop: 2,
+  },
+
+  heroTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: COLORS.text,
+    marginBottom: 8,
+  },
+
+  heroSubtitle: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: '#475569',
+  },
+
+  countPill: {
+    alignSelf: 'flex-start',
+    marginTop: 14,
+    backgroundColor: COLORS.yellowSoft,
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+
+  countPillText: {
+    color: '#8A5A00',
+    fontWeight: '900',
+    fontSize: 13,
+  },
+
+  sectionHeader: {
+    marginBottom: 10,
+  },
+
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: COLORS.text,
+  },
+
+  sectionSubtitle: {
+    marginTop: 2,
+    fontSize: 13,
+    color: COLORS.muted,
+  },
+
   ticketCard: {
+    marginHorizontal: 16,
+    marginBottom: 14,
+    padding: 16,
+    borderRadius: 22,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+
+  ticketCardAvailable: {
+    borderLeftWidth: 6,
+    borderLeftColor: COLORS.teal,
+  },
+
+  ticketCardUsed: {
+    borderLeftWidth: 6,
+    borderLeftColor: COLORS.red,
+  },
+
+  cardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginBottom: 10,
+  },
+
+  activeBadge: {
+    backgroundColor: COLORS.tealSoft,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+  },
+
+  activeBadgeText: {
+    color: COLORS.teal,
+    fontWeight: '800',
+    fontSize: 12,
+  },
+
+  usedBadge: {
+    backgroundColor: COLORS.redSoft,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+  },
+
+  usedBadgeText: {
+    color: COLORS.red,
+    fontWeight: '800',
+    fontSize: 12,
+  },
+
+  routeName: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: COLORS.text,
+  },
+
+  routeSubtitle: {
+    fontSize: 14,
+    color: COLORS.muted,
+    marginTop: 4,
+    marginBottom: 14,
+  },
+
+  metaGroup: {
+    marginBottom: 10,
+  },
+
+  metaLabel: {
+    fontSize: 12,
+    color: COLORS.muted,
+    fontWeight: '700',
+    marginBottom: 3,
+  },
+
+  metaValue: {
+    fontSize: 14,
+    color: COLORS.text,
+    fontWeight: '800',
+  },
+
+  cardFooter: {
+    marginTop: 6,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
-    marginBottom: 16,
-    borderRadius: 12,
-    backgroundColor: '#ffffff', // Fondo blanco para los tickets
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 4,
   },
-  ticketCardAvailable: {
-    borderLeftWidth: 6,
-    borderLeftColor: '#66bb6a', // Verde para tickets disponibles
-  },
-  ticketCardUsed: {
-    borderLeftWidth: 6,
-    borderLeftColor: '#ef5350', // Rojo para tickets usados
-  },
-  ticketInfo: {
-    flex: 3,
-  },
-  routeName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#2a3d66',
-  },
-  date: {
-    fontSize: 14,
-    color: '#4f5b72',
-    marginTop: 4,
-  },
-  statusContainer: {
-    flex: 1,
-    alignItems: 'flex-end',
-  },
-  statusUsed: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#d32f2f',
-    textAlign: 'center',
-  },
-  usedDate: {
+
+  ticketIdText: {
     fontSize: 12,
-    color: '#777',
-    marginTop: 4,
-    textAlign: 'center',
+    color: COLORS.muted,
+    fontWeight: '700',
   },
+
   qrButton: {
-    backgroundColor: '#0288D1',
+    backgroundColor: COLORS.teal,
     paddingVertical: 10,
     paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: 'center',
+    borderRadius: 14,
   },
+
   qrButtonText: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: '900',
   },
-  noTicketsText: {
-    fontSize: 16,
-    color: '#4f5b72',
-    textAlign: 'center',
-    marginTop: 20,
+
+  usedInfoPill: {
+    backgroundColor: COLORS.redSoft,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
   },
-  loadMoreButton: {
-    marginTop: 16,
-    backgroundColor: '#0288D1',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
+
+  usedInfoText: {
+    color: COLORS.red,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  emptyCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 22,
+    padding: 20,
+    marginHorizontal: 16,
+    marginTop: 6,
     alignItems: 'center',
-    alignSelf: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
+
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: COLORS.text,
+    marginBottom: 8,
+  },
+
+  emptyText: {
+    fontSize: 14,
+    color: COLORS.muted,
+    textAlign: 'center',
+    lineHeight: 21,
+  },
+
+  loadMoreButton: {
+    marginTop: 6,
+    alignSelf: 'center',
+    backgroundColor: COLORS.teal,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+  },
+
   loadMoreText: {
-    color: '#fff',
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.bg,
+    paddingHorizontal: 24,
+  },
+
+  loadingText: {
     fontSize: 16,
-    fontWeight: 'bold',
+    color: COLORS.muted,
+    marginTop: 10,
+    textAlign: 'center',
   },
 });
 

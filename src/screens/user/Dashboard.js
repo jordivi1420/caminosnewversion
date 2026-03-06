@@ -5,9 +5,8 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import EventsScreen from './EventsScreen';
 import SettingsScreen from './SettingsScreen';
 import TicketHistoryScreen from './TicketHistoryScreen';
+
 const Tab = createBottomTabNavigator();
-
-
 
 const TicketsScreen = () => (
   <View style={styles.container}>
@@ -15,12 +14,19 @@ const TicketsScreen = () => (
   </View>
 );
 
-
-
 const Dashboard = () => {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
+        headerTitleAlign: 'center',
+        headerShadowVisible: false,
+        headerBackTitleVisible: false,
+        headerTintColor: '#1F2937',
+        headerTitleStyle: {
+          fontSize: 18,
+          fontWeight: '800',
+        },
+
         tabBarIcon: ({ color, size }) => {
           let iconName;
           if (route.name === 'Eventos') {
@@ -32,13 +38,54 @@ const Dashboard = () => {
           }
           return <Icon name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: '#0288D1',
-        tabBarInactiveTintColor: 'gray',
+
+        tabBarActiveTintColor: '#0F9CA8',
+        tabBarInactiveTintColor: '#8A8F98',
+        tabBarStyle: {
+          backgroundColor: '#FFFFFF',
+          borderTopColor: '#F1E5C8',
+          height: 62,
+          paddingBottom: 6,
+          paddingTop: 6,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '700',
+        },
       })}
     >
-      <Tab.Screen name="Eventos" component={EventsScreen} />
-      <Tab.Screen name="Mis tickets" component={TicketHistoryScreen} />
-      <Tab.Screen name="Configuracion" component={SettingsScreen} />
+      <Tab.Screen
+        name="Eventos"
+        component={EventsScreen}
+        options={{
+          title: 'Rutas',
+          headerStyle: {
+            backgroundColor: '#FFF9F0',
+          },
+        }}
+      />
+
+      <Tab.Screen
+        name="Mis tickets"
+        component={TicketHistoryScreen}
+        options={{
+          title: 'Mis tickets',
+          headerStyle: {
+            backgroundColor: '#FFF9F0',
+          },
+        }}
+      />
+
+      <Tab.Screen
+        name="Configuracion"
+        component={SettingsScreen}
+        options={{
+          title: 'Configuración',
+          headerStyle: {
+            backgroundColor: '#F4F8FC',
+          },
+        }}
+      />
     </Tab.Navigator>
   );
 };

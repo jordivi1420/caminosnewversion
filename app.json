@@ -23,7 +23,9 @@
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "CAMERA"
+        "CAMERA",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ],
       "config": {
         "googleMaps": {
@@ -41,7 +43,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "a92755ec-963d-4dbc-a259-d59682b82de1"
+        "projectId": "31f64c93-54c0-4a23-babf-5124416e1c34"
       }
     },
     "plugins": [
@@ -53,6 +55,7 @@
           "recordAudioAndroid": true
         }
       ]
-    ]
+    ],
+    "owner": "cgpt"
   }
 }

@@ -1,7 +1,31 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  ActivityIndicator,
+  ImageBackground,
+  SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+} from 'react-native';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../services/firebase'; // Importa Firebase Auth
+import { auth } from '../services/firebase';
+
+const COLORS = {
+  text: '#1F2937',
+  muted: '#6B7280',
+  teal: '#00A8B5',
+  red: '#E95454',
+  white: '#FFFFFF',
+  border: '#E5E7EB',
+  overlay: 'rgba(0, 0, 0, 0.32)',
+  cardOverlay: 'rgba(255, 255, 255, 0.94)',
+};
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
@@ -15,7 +39,8 @@ const LoginScreen = ({ navigation }) => {
       return;
     }
 
-    setLoading(true); // Muestra el indicador de carga
+    setLoading(true);
+
     try {
       await signInWithEmailAndPassword(auth, email, password);
       console.log('Usuario logueado');
@@ -23,106 +48,242 @@ const LoginScreen = ({ navigation }) => {
       console.error('Error al iniciar sesión:', error.message);
       setErrorMessage('Error al iniciar sesión. Verifica tus credenciales.');
     } finally {
-      setLoading(false); // Oculta el indicador de carga
+      setLoading(false);
     }
   };
 
   return (
-    <View style={styles.container}>
-      {/* Imagen superior */}
-      <Image
-        source={require('../../assets/logo.png')} // Cambia 'logo.png' por la imagen que desees
-        style={styles.image}
-      />
-      <Text style={styles.title}>Iniciar Sesión</Text>
-      {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
-      <TextInput
-        style={styles.input}
-        placeholder="Correo Electrónico"
-        onChangeText={(text) => {
-          setErrorMessage(''); // Limpia errores al escribir
-          setEmail(text);
-        }}
-        value={email}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Contraseña"
-        secureTextEntry
-        onChangeText={(text) => {
-          setErrorMessage(''); // Limpia errores al escribir
-          setPassword(text);
-        }}
-        value={password}
-      />
-      <TouchableOpacity style={[styles.button, loading && styles.buttonDisabled]} onPress={handleLogin} disabled={loading}>
-        {loading ? (
-          <ActivityIndicator size="small" color="#fff" /> // Indicador de carga dentro del botón
-        ) : (
-          <Text style={styles.buttonText}>Iniciar Sesión</Text>
-        )}
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.registerButton} onPress={() => navigation.navigate('Register')}>
-        <Text style={styles.registerText}>Crear una Cuenta</Text>
-      </TouchableOpacity>
-    </View>
+    <ImageBackground
+      source={require('../../assets/university-bg.jpg')}
+      style={styles.background}
+      imageStyle={styles.backgroundImage}
+    >
+      <View style={styles.overlay} />
+
+      <SafeAreaView style={styles.safeArea}>
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.heroBox}>
+              <Text style={styles.eyebrow}>Universidad de La Guajira</Text>
+              <Text style={styles.heroTitle}>Bienvenido</Text>
+              <Text style={styles.heroSubtitle}>
+                Inicia sesión para acceder a tus rutas, tickets y servicios del sistema.
+              </Text>
+            </View>
+
+            <View style={styles.formCard}>
+              <View style={styles.topAccent} />
+
+              <Image
+                source={require('../../assets/logo.png')}
+                style={styles.image}
+                resizeMode="contain"
+              />
+
+              <Text style={styles.title}>Iniciar sesión</Text>
+              <Text style={styles.subtitle}>Ingresa tus datos para continuar</Text>
+
+              {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
+
+              <TextInput
+                style={styles.input}
+                placeholder="Correo electrónico"
+                placeholderTextColor="#94A3B8"
+                onChangeText={(text) => {
+                  setErrorMessage('');
+                  setEmail(text);
+                }}
+                value={email}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+
+              <TextInput
+                style={styles.input}
+                placeholder="Contraseña"
+                placeholderTextColor="#94A3B8"
+                secureTextEntry
+                onChangeText={(text) => {
+                  setErrorMessage('');
+                  setPassword(text);
+                }}
+                value={password}
+              />
+
+              <TouchableOpacity
+                style={[styles.button, loading && styles.buttonDisabled]}
+                onPress={handleLogin}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.buttonText}>Iniciar sesión</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.registerButton}
+                onPress={() => navigation.navigate('Register')}
+              >
+                <Text style={styles.registerText}>Crear una cuenta</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  flex: {
     flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
+  },
+
+  background: {
+    flex: 1,
+  },
+
+  backgroundImage: {
+    resizeMode: 'cover',
+  },
+
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: COLORS.overlay,
+  },
+
+  safeArea: {
+    flex: 1,
+  },
+
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 24,
   },
+
+  heroBox: {
+    marginBottom: 18,
+  },
+
+  eyebrow: {
+    color: COLORS.white,
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    marginBottom: 8,
+    letterSpacing: 0.4,
+  },
+
+  heroTitle: {
+    color: COLORS.white,
+    fontSize: 30,
+    fontWeight: '900',
+    marginBottom: 8,
+  },
+
+  heroSubtitle: {
+    color: '#F8FAFC',
+    fontSize: 14,
+    lineHeight: 21,
+    maxWidth: '92%',
+  },
+
+  formCard: {
+    backgroundColor: COLORS.cardOverlay,
+    borderRadius: 24,
+    padding: 20,
+    overflow: 'hidden',
+    alignItems: 'center',
+  },
+
+  topAccent: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 6,
+    backgroundColor: COLORS.teal,
+  },
+
   image: {
-    width: 150,
-    height: 150,
-    marginBottom: 20,
+    width: 110,
+    height: 110,
+    marginBottom: 12,
+    marginTop: 6,
   },
+
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 20,
-  },
-  error: {
-    color: '#E53935',
-    marginBottom: 10,
+    fontWeight: '900',
+    color: COLORS.text,
+    marginBottom: 4,
     textAlign: 'center',
   },
+
+  subtitle: {
+    fontSize: 13,
+    color: COLORS.muted,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+
+  error: {
+    color: COLORS.red,
+    marginBottom: 12,
+    textAlign: 'center',
+    fontWeight: '700',
+  },
+
   input: {
-    height: 50,
-    borderColor: '#ddd',
+    height: 52,
+    width: '100%',
+    backgroundColor: COLORS.white,
+    borderColor: COLORS.border,
     borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    marginBottom: 15,
-    width: '80%',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+    fontSize: 15,
+    color: COLORS.text,
   },
+
   button: {
-    backgroundColor: '#FFC107',
-    paddingVertical: 12,
+    backgroundColor: COLORS.teal,
+    paddingVertical: 15,
     alignItems: 'center',
-    borderRadius: 8,
-    width: '80%',
+    borderRadius: 16,
+    width: '100%',
+    marginTop: 4,
   },
+
   buttonDisabled: {
-    backgroundColor: '#BDBDBD', // Color del botón cuando está deshabilitado
+    opacity: 0.7,
   },
+
   buttonText: {
     color: '#fff',
-    fontWeight: 'bold',
+    fontWeight: '900',
     fontSize: 16,
   },
+
   registerButton: {
-    marginTop: 20,
+    marginTop: 16,
   },
+
   registerText: {
-    color: '#0288D1',
-    fontWeight: 'bold',
+    color: COLORS.teal,
+    fontWeight: '800',
+    fontSize: 14,
   },
 });
 

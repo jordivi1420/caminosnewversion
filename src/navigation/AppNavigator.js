@@ -20,7 +20,7 @@ const AppNavigator = () => {
       if (user) {
         const userRole = await fetchUserRole(user.uid);
         setRole(userRole);
-        console.log('Rol del usuario:', userRole); // Verifica aquí
+        console.log('Rol del usuario:', userRole);
       } else {
         setRole(null);
       }
@@ -41,13 +41,13 @@ const AppNavigator = () => {
   };
 
   if (loading) {
-    return null; // Puedes mostrar un splash screen aquí
+    return null;
   }
 
   return (
     <NavigationContainer>
       {role === null ? (
-        <Stack.Navigator>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Login" component={LoginScreen} />
           <Stack.Screen name="Register" component={RegisterScreen} />
         </Stack.Navigator>

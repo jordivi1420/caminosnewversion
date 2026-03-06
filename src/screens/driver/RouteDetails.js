@@ -1,76 +1,169 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Button, Alert } from 'react-native';
-import { database } from '../../services/firebase';
-import { ref, get, update } from 'firebase/database';
-import moment from 'moment';
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+  TouchableOpacity,
+  Alert,
+} from "react-native";
+import { database } from "../../services/firebase";
+import { ref, get, update, onValue, off } from "firebase/database";
+import moment from "moment";
 
 const RouteDetails = ({ route, navigation }) => {
   const { routeId } = route.params;
+
   const [routeDetails, setRouteDetails] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isRouteStarted, setIsRouteStarted] = useState(false);
   const [isButtonEnabled, setIsButtonEnabled] = useState(false);
 
+  const enableTimeoutRef = useRef(null);
+
+  // ✅ Escuchar cambios en tiempo real (si inicia ruta desde otro lado, se actualiza)
   useEffect(() => {
-    const fetchRouteDetails = async () => {
-      try {
-        const snapshot = await get(ref(database, `routes/${routeId}`));
+    const routeRef = ref(database, `routes/${routeId}`);
+
+    const unsub = onValue(
+      routeRef,
+      (snapshot) => {
         if (snapshot.exists()) {
-          const routeData = snapshot.val();
-          setRouteDetails(routeData);
-          setIsRouteStarted(routeData.status === 'started');
-
-          // Verificar si la hora actual permite habilitar el botón
-          const departureTime = moment(routeData.departureTime);
-          const now = moment();
-
-          if (now.isAfter(departureTime.add(1, 'second'))) {
-            setIsButtonEnabled(true);
-          } else {
-            const timeDifference = departureTime.diff(now, 'milliseconds') + 1000;
-            setTimeout(() => {
-              setIsButtonEnabled(true);
-            }, timeDifference);
-          }
+          setRouteDetails(snapshot.val());
         } else {
-          console.error('Ruta no encontrada.');
+          setRouteDetails(null);
         }
-      } catch (error) {
-        console.error('Error al obtener los detalles de la ruta:', error);
-      } finally {
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Error al obtener detalles:", error);
         setLoading(false);
       }
-    };
+    );
 
-    fetchRouteDetails();
+    return () => {
+      // off por seguridad
+      off(routeRef);
+      if (enableTimeoutRef.current) clearTimeout(enableTimeoutRef.current);
+      // unsub a veces no existe en versiones, por eso usamos off arriba
+      if (typeof unsub === "function") unsub();
+    };
   }, [routeId]);
+
+  const status = routeDetails?.status || "scheduled";
+  const isRouteStarted = status === "started";
+
+  // ✅ Normalizar campos (compatibilidad con rutas viejas y nuevas)
+  const originLabel =
+    routeDetails?.originName ||
+    routeDetails?.routeName ||
+    "Origen (sin nombre)";
+
+  const destinationLabel =
+    routeDetails?.destinationName || "Destino (sin nombre)";
+
+  const departureMoment = useMemo(() => {
+    const t = routeDetails?.departureTime;
+    return t ? moment(t) : null;
+  }, [routeDetails?.departureTime]);
+
+  const arrivalMoment = useMemo(() => {
+    const t = routeDetails?.arrivalTime;
+    return t ? moment(t) : null;
+  }, [routeDetails?.arrivalTime]);
+
+  const distanceText = useMemo(() => {
+    if (!routeDetails) return "--";
+    if (typeof routeDetails.distanceKm === "number")
+      return `${routeDetails.distanceKm.toFixed(2)} km`;
+    if (routeDetails.distance) return String(routeDetails.distance);
+    return "--";
+  }, [routeDetails]);
+
+  const durationText = useMemo(() => {
+    if (!routeDetails) return "--";
+    if (typeof routeDetails.durationMin === "number")
+      return `${Math.round(routeDetails.durationMin)} min`;
+    if (routeDetails.duration) return String(routeDetails.duration);
+    return "--";
+  }, [routeDetails]);
+
+  const seats = useMemo(() => {
+    if (!routeDetails) return { available: "--", capacity: "--" };
+
+    const capacity =
+      routeDetails.capacity ??
+      (typeof routeDetails.passengers === "number" ? routeDetails.passengers : 25);
+
+    const available =
+      routeDetails.availableSeats ??
+      (typeof routeDetails.availableSeats === "number"
+        ? routeDetails.availableSeats
+        : capacity);
+
+    return { available, capacity };
+  }, [routeDetails]);
+
+  // ✅ Habilitar botón solo cuando ya pasó la hora de salida
+  useEffect(() => {
+    if (!routeDetails?.departureTime) {
+      setIsButtonEnabled(true);
+      return;
+    }
+
+    if (enableTimeoutRef.current) clearTimeout(enableTimeoutRef.current);
+
+    const now = moment();
+    const dep = moment(routeDetails.departureTime);
+
+    // Si ya pasó la hora, habilita
+    if (now.isSameOrAfter(dep)) {
+      setIsButtonEnabled(true);
+      return;
+    }
+
+    setIsButtonEnabled(false);
+    const ms = Math.max(dep.diff(now, "milliseconds"), 0);
+
+    enableTimeoutRef.current = setTimeout(() => {
+      setIsButtonEnabled(true);
+    }, ms);
+  }, [routeDetails?.departureTime]);
 
   const handleStartRoute = async () => {
     try {
       await update(ref(database, `routes/${routeId}`), {
-        status: 'started',
+        status: "started",
         startedAt: new Date().toISOString(),
       });
-      setIsRouteStarted(true);
-      Alert.alert('Ruta Iniciada', 'La ruta ha comenzado correctamente.');
 
-      // Redirigir al mapa con los datos de la ruta
-      navigation.navigate('RouteMap', {
+      Alert.alert("Ruta iniciada", "La ruta ha comenzado correctamente.");
+
+      // Ir al mapa con los datos de la ruta
+      navigation.navigate("RouteMap", {
         origin: routeDetails.origin,
         destination: routeDetails.destination,
-        routeId
+        routeId,
       });
     } catch (error) {
-      console.error('Error al iniciar la ruta:', error);
-      Alert.alert('Error', 'Hubo un problema al iniciar la ruta. Intenta nuevamente.');
+      console.error("Error al iniciar la ruta:", error);
+      Alert.alert("Error", "Hubo un problema al iniciar la ruta.");
     }
+  };
+
+  const handleGoToMap = () => {
+    navigation.navigate("RouteMap", {
+      origin: routeDetails.origin,
+      destination: routeDetails.destination,
+      routeId,
+    });
   };
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0288D1" />
-        <Text style={styles.loadingText}>Cargando detalles de la ruta...</Text>
+        <ActivityIndicator size="large" color="#0B74FF" />
+        <Text style={styles.loadingText}>Cargando detalles...</Text>
       </View>
     );
   }
@@ -78,142 +171,261 @@ const RouteDetails = ({ route, navigation }) => {
   if (!routeDetails) {
     return (
       <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>No se encontraron detalles para esta ruta.</Text>
+        <Text style={styles.errorTitle}>Ruta no encontrada</Text>
+        <Text style={styles.errorText}>
+          No se encontraron detalles para esta ruta.
+        </Text>
       </View>
     );
   }
 
+  const statusLabel =
+    status === "started" ? "EN CURSO" : status === "scheduled" ? "PROGRAMADA" : status.toUpperCase();
+
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>{routeDetails.destinationName}</Text>
-      <View style={styles.section}>
-        <Text style={styles.label}>Origen:</Text>
-        <Text style={styles.value}>{routeDetails.routeName}</Text>
-      </View>
-      <View style={styles.section}>
-        <Text style={styles.label}>Destino:</Text>
-        <Text style={styles.value}>{routeDetails.destinationName}</Text>
-      </View>
-      <View style={styles.section}>
-        <Text style={styles.label}>Distancia:</Text>
-        <Text style={styles.value}>{routeDetails.distance}</Text>
-      </View>
-      <View style={styles.section}>
-        <Text style={styles.label}>Duración:</Text>
-        <Text style={styles.value}>{routeDetails.duration}</Text>
-      </View>
-      <View style={styles.section}>
-        <Text style={styles.label}>Hora de salida:</Text>
-        <Text style={styles.value}>
-          {moment(routeDetails.departureTime).format('DD/MM/YYYY HH:mm')}
-        </Text>
-      </View>
-      <View style={styles.section}>
-        <Text style={styles.label}>Hora estimada de llegada:</Text>
-        <Text style={styles.value}>
-          {moment(routeDetails.arrivalTime).format('DD/MM/YYYY HH:mm')}
-        </Text>
-      </View>
-      <View style={styles.section}>
-        <Text style={styles.label}>Conductor:</Text>
-        <Text style={styles.value}>{routeDetails.driverName}</Text>
-      </View>
-      <View style={styles.section}>
-        <Text style={styles.label}>Calificación del conductor:</Text>
-        <Text style={styles.value}>{routeDetails.driverRating}</Text>
-      </View>
-      <View style={styles.section}>
-        <Text style={styles.label}>Pasajeros disponibles:</Text>
-        <Text style={styles.value}>{routeDetails.passengers}</Text>
-      </View>
-      {!isRouteStarted ? (
-        <View style={styles.buttonContainer}>
-          <Button
-            title="Iniciar Ruta"
-            onPress={handleStartRoute}
-            color="#0288D1"
-            disabled={!isButtonEnabled}
+    <View style={{ flex: 1, backgroundColor: "#F6F8FC" }}>
+      <ScrollView contentContainerStyle={styles.container}>
+        {/* Header Card */}
+        <View style={styles.headerCard}>
+          <Text style={styles.headerTitle}>{destinationLabel}</Text>
+
+          <Text style={styles.headerSubtitle} numberOfLines={2}>
+            {originLabel} → {destinationLabel}
+          </Text>
+
+          <View style={styles.chipsRow}>
+            <Chip text={statusLabel} variant={status === "started" ? "green" : "blue"} />
+            <Chip text={`Cupos: ${seats.available}/${seats.capacity}`} variant="gray" />
+            <Chip text={distanceText} variant="gray" />
+            <Chip text={durationText} variant="gray" />
+          </View>
+        </View>
+
+        {/* Info Cards */}
+        <View style={styles.grid}>
+          <InfoCard
+            label="Salida"
+            value={departureMoment ? departureMoment.format("DD/MM/YYYY HH:mm") : "--"}
+          />
+          <InfoCard
+            label="Llegada estimada"
+            value={arrivalMoment ? arrivalMoment.format("DD/MM/YYYY HH:mm") : "--"}
+          />
+          <InfoCard label="Conductor" value={routeDetails.driverName || "—"} />
+          <InfoCard
+            label="Calificación"
+            value={routeDetails.driverRating != null ? String(routeDetails.driverRating) : "—"}
           />
         </View>
-      ) : (
-        <View style={styles.statusContainer}>
-          <Text style={styles.startedText}>Ruta en curso</Text>
+
+        {/* Extra details */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Detalles</Text>
+
+          <Row label="Origen" value={originLabel} />
+          <Row label="Destino" value={destinationLabel} />
+          <Row label="Distancia" value={distanceText} />
+          <Row label="Duración" value={durationText} />
+
+          <Row
+            label="Asientos disponibles"
+            value={`${seats.available} de ${seats.capacity}`}
+          />
         </View>
-      )}
-    </ScrollView>
+
+        {/* Helper */}
+        {!isRouteStarted && (
+          <Text style={styles.helperText}>
+            {isButtonEnabled
+              ? "Ya puedes iniciar la ruta."
+              : "Podrás iniciar la ruta cuando llegue la hora programada."}
+          </Text>
+        )}
+
+        {/* espacio para el botón fijo */}
+        <View style={{ height: 90 }} />
+      </ScrollView>
+
+      {/* Bottom CTA */}
+      <View style={styles.bottomBar}>
+        {isRouteStarted ? (
+          <TouchableOpacity style={styles.primaryBtn} onPress={handleGoToMap}>
+            <Text style={styles.primaryBtnText}>Ver ruta en el mapa</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[styles.primaryBtn, !isButtonEnabled && { opacity: 0.5 }]}
+            onPress={handleStartRoute}
+            disabled={!isButtonEnabled}
+          >
+            <Text style={styles.primaryBtnText}>Iniciar ruta</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
   );
 };
 
+/* ---------- UI components ---------- */
+
+function Chip({ text, variant = "gray" }) {
+  const bg =
+    variant === "green"
+      ? "#DCFCE7"
+      : variant === "blue"
+      ? "#DBEAFE"
+      : "#EEF2FF";
+  const color =
+    variant === "green"
+      ? "#166534"
+      : variant === "blue"
+      ? "#1D4ED8"
+      : "#334155";
+
+  return (
+    <View style={[styles.chip, { backgroundColor: bg }]}>
+      <Text style={[styles.chipText, { color }]}>{text}</Text>
+    </View>
+  );
+}
+
+function InfoCard({ label, value }) {
+  return (
+    <View style={styles.infoCard}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue} numberOfLines={2}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+function Row({ label, value }) {
+  return (
+    <View style={styles.row}>
+      <Text style={styles.rowLabel}>{label}</Text>
+      <Text style={styles.rowValue} numberOfLines={2}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+/* ---------- styles ---------- */
+
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
-    backgroundColor: '#FFFFFF',
-    flexGrow: 1,
+    padding: 14,
+    paddingTop: 12,
   },
+
   loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    flex: 1, justifyContent: "center", alignItems: "center",
+    backgroundColor: "#F6F8FC",
   },
-  loadingText: {
-    fontSize: 16,
-    color: '#555',
-    marginTop: 10,
-  },
+  loadingText: { marginTop: 10, color: "#555", fontSize: 15 },
+
   errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
+    flex: 1, justifyContent: "center", alignItems: "center",
+    padding: 20, backgroundColor: "#F6F8FC",
   },
-  errorText: {
-    fontSize: 18,
-    color: '#E53935',
-    textAlign: 'center',
+  errorTitle: { fontSize: 18, fontWeight: "900", color: "#111", marginBottom: 6 },
+  errorText: { fontSize: 14, color: "#666", textAlign: "center" },
+
+  headerCard: {
+    backgroundColor: "#fff",
+    borderRadius: 18,
+    padding: 14,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+    marginBottom: 12,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#0288D1',
-    textAlign: 'center',
-    marginBottom: 20,
+  headerTitle: { fontSize: 18, fontWeight: "900", color: "#111" },
+  headerSubtitle: { marginTop: 6, color: "#475569", fontWeight: "700" },
+
+  chipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 12,
   },
-  section: {
-    marginBottom: 15,
-    padding: 10,
-    backgroundColor: '#F9F9F9',
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+  chip: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+  },
+  chipText: { fontWeight: "900", fontSize: 12 },
+
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginBottom: 12,
+  },
+  infoCard: {
+    width: "48%",
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
     elevation: 3,
   },
-  label: {
+  infoLabel: { color: "#64748B", fontWeight: "800", fontSize: 12, marginBottom: 6 },
+  infoValue: { color: "#0F172A", fontWeight: "900", fontSize: 14 },
+
+  section: {
+    backgroundColor: "#fff",
+    borderRadius: 18,
+    padding: 14,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  sectionTitle: { fontSize: 14, fontWeight: "900", color: "#111", marginBottom: 10 },
+
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#EEF2F7",
+  },
+  rowLabel: { color: "#64748B", fontWeight: "800", fontSize: 13, width: "42%" },
+  rowValue: { color: "#0F172A", fontWeight: "800", fontSize: 13, flex: 1, textAlign: "right" },
+
+  helperText: {
+    marginTop: 10,
+    color: "#64748B",
+    textAlign: "center",
+    fontWeight: "700",
+  },
+
+  bottomBar: {
+    position: "absolute",
+    left: 14,
+    right: 14,
+    bottom: 14,
+  },
+  primaryBtn: {
+    backgroundColor: "#0B74FF",
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.14,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  primaryBtnText: {
+    color: "white",
+    fontWeight: "900",
     fontSize: 16,
-    fontWeight: '600',
-    color: '#555',
-  },
-  value: {
-    fontSize: 18,
-    color: '#333',
-    marginTop: 4,
-    fontWeight: '400',
-  },
-  buttonContainer: {
-    marginTop: 20,
-  },
-  statusContainer: {
-    marginTop: 20,
-    padding: 10,
-    backgroundColor: '#E0F7FA',
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  startedText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#0288D1',
   },
 });
 
